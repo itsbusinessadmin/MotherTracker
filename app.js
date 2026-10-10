@@ -2,7 +2,7 @@
   'use strict';
   var CFG=window.CE_CONFIG||{};
   var PAGE_ID=CFG.pageId||'main';
-  var BUCKET='link-images';
+  var BUCKET='ce-link-images';
   var CACHE_KEY='ce-links:'+PAGE_ID;
   var DEFAULT={name:'CE Fun Club Store',logo:'',links:[{id:'l1',title:'Order online',url:'https://bilihan.shop',img:'',admin:'https://bilihan.shop/admin.html'}]};
 
@@ -232,7 +232,7 @@
 
   function refresh(){
     if(!sb)return Promise.resolve();
-    return sb.from('link_pages').select('*').eq('id',PAGE_ID).maybeSingle().then(function(r){
+    return sb.from('ce_link_pages').select('*').eq('id',PAGE_ID).maybeSingle().then(function(r){
       if(r.error){sync='offline';render();return}
       sync='live';
       if(r.data&&r.data.version!==version)applyRow(r.data);
@@ -251,8 +251,8 @@
     saving=true;msg='';render();
     var row={name:state.name,logo:state.logo||'',links:state.links};
     var q=version==null
-      ?sb.from('link_pages').upsert(Object.assign({id:PAGE_ID},row))
-      :sb.from('link_pages').update(row).eq('id',PAGE_ID).eq('version',version);
+      ?sb.from('ce_link_pages').upsert(Object.assign({id:PAGE_ID},row))
+      :sb.from('ce_link_pages').update(row).eq('id',PAGE_ID).eq('version',version);
     q.select().then(function(r){
       saving=false;
       if(r.error){
@@ -271,10 +271,11 @@
   function sendLink(email){
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){login.email=email;login.err='Enter a valid email address.';render();return}
     login={email:email,busy:true};render();
-    sb.auth.signInWithOtp({email:email,options:{shouldCreateUser:true,emailRedirectTo:location.origin+location.pathname}}).then(function(r){
+    sb.auth.signInWithOtp({email:email,options:{shouldCreateUser:false,emailRedirectTo:location.origin+location.pathname}}).then(function(r){
       if(!login)return;
       login.busy=false;
-      if(r.error)login.err=r.error.status===429?'Too many tries. Wait a minute and try again.':'Could not send the link. '+r.error.message;
+      if(r.error)login.err=r.error.status===429?'Too many tries. Wait a minute and try again.':
+        /signup|not allowed|not found/i.test(r.error.message||'')?'That email isn\'t set up as an owner yet.':'Could not send the link. '+r.error.message;
       else login.sent=true;
       render();
     });
@@ -282,7 +283,7 @@
 
   function checkEditor(){
     if(!user){canEdit=false;editing=false;dirty=false;state=clone(saved);render();return}
-    sb.rpc('is_editor').then(function(r){
+    sb.rpc('ce_is_editor').then(function(r){
       canEdit=!r.error&&r.data===true;
       if(!canEdit){editing=false;dirty=false;state=clone(saved)}
       render();
@@ -298,7 +299,7 @@
       setTimeout(checkEditor,0);
     });
     sb.channel('link-page-'+PAGE_ID)
-      .on('postgres_changes',{event:'*',schema:'public',table:'link_pages',filter:'id=eq.'+PAGE_ID},function(p){
+      .on('postgres_changes',{event:'*',schema:'public',table:'ce_link_pages',filter:'id=eq.'+PAGE_ID},function(p){
         if(p.new&&p.new.version!=null&&(version==null||p.new.version>version)){applyRow(p.new);render()}
       })
       .subscribe(function(status){

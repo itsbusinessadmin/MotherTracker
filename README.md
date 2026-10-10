@@ -10,13 +10,15 @@ A link page for the CE Fun Club Store that you can install like an app. Anyone w
 
 ## Set up Supabase (about 5 minutes)
 
-1. Create a project at [supabase.com](https://supabase.com).
-2. Open **SQL Editor → New query**, paste in all of [`supabase/schema.sql`](supabase/schema.sql), and run it.
-3. In the same editor, add yourself (and any other owners) as editors:
+You don't need a new project. This app can share a Supabase project you already have. Its tables, its storage bucket and its function all start with `ce_`, so they won't clash with your other app.
+
+1. Open the existing project. Go to **SQL Editor → New query**, paste in all of [`supabase/schema.sql`](supabase/schema.sql), and run it.
+2. Add yourself (and any other owners) as editors:
    ```sql
-   insert into public.editors (email) values ('you@example.com');
+   insert into public.ce_editors (email) values ('you@example.com');
    ```
-4. Go to **Authentication → URL Configuration**. Set **Site URL** to the address where the app will be hosted (for example `https://ce-links.vercel.app`). Also add it under **Redirect URLs**. If you test locally, add `http://localhost:8000` as well.
+3. Make sure each owner has a user account in this project. Go to **Authentication → Users → Add user → Send invitation**, or skip this if they already use your other app with that email. This app won't create new accounts, so strangers can't use it to sign up to your other app.
+4. Go to **Authentication → URL Configuration**. Add the address where this app will be hosted (for example `https://ce-links.vercel.app`) under **Redirect URLs**. Leave **Site URL** alone, because your other app uses it. If you test locally, also add `http://localhost:8000`.
 5. Open **Project Settings → API**. Copy the **Project URL** and the **anon public** key into [`config.js`](config.js).
 
 The anon key is safe to make public. What stops other people from editing is the row-level security rules in `schema.sql`.
