@@ -135,5 +135,5 @@ on conflict (id) do nothing;
 -- ── Set (or change) your edit code: replace CHANGE-ME, then run these lines ──
 -- Pick something longer than 4 digits, e.g. a short phrase like 'green-mango-42'.
 -- insert into public.ce_edit_codes (page_id, code_hash)
--- values ('main', extensions.crypt('CHANGE-ME', extensions.gen_salt('bf')))
+-- values ('main', extensions.crypt('CESADMIN', extensions.gen_salt('bf')))
 -- on conflict (page_id) do update set code_hash = excluded.code_hash, failed_attempts = 0;
