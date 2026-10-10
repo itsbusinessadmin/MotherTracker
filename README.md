@@ -3,7 +3,7 @@
 A link page for the CE Fun Club Store that you can install like an app. Anyone with the URL can see the links. Owners sign in and edit them, and changes reach every open phone and computer right away through Supabase.
 
 - **Cloud sync:** the page name, logo and links are stored in Supabase. When someone saves, every open copy updates live.
-- **Owner-only editing:** owners sign in with an email link. Only emails on the `editors` list can change anything, and the database rules enforce this too.
+- **Owner-only editing:** owners sign in with an email link. Only emails on the `ce_editors` list can change anything, and the database rules enforce this too.
 - **Photos:** logos and tile photos are cropped to squares, shrunk, and uploaded to Supabase Storage.
 - **Safe saves:** if two people edit at the same time, the second save is stopped. That person is asked to load the newer version first, so no one's changes get overwritten.
 - **Installable and works offline:** you can add it to your home screen, and it still shows the last links when there's no connection.
