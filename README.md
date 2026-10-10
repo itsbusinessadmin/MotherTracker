@@ -41,8 +41,6 @@ The app is plain static files and needs no build step. Any static host works:
 - **Netlify:** drag the folder into Netlify Drop, or connect the repo.
 - **GitHub Pages:** Settings → Pages → deploy from the branch root.
 
-After deploying, make sure the live URL is listed under the Supabase redirect URLs (step 4).
-
 ## Files
 
 | File | Purpose |
