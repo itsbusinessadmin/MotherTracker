@@ -1,6 +1,6 @@
 // Offline support: keeps the app shell available without a connection.
 // Page data comes from Supabase (and the app's own local cache), never from here.
-var CACHE = 'ce-links-v1';
+var CACHE = 'ce-links-v2';
 var SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 

@@ -76,7 +76,7 @@ input[type=text],input[type=url]{font:16px var(--body);padding:10px 12px;border-
 /* Web app additions */
 html{-webkit-text-size-adjust:100%}
 body{margin:0;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
-input[type=email]{font:16px var(--body);padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+input[type=email],input[type=password]{font:16px var(--body);padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
 .footer-actions{display:flex;justify-content:center;margin-top:10px}
 .footer-actions .linkbtn{text-transform:none;letter-spacing:0}
 .sync{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
@@ -85,4 +85,5 @@ input[type=email]{font:16px var(--body);padding:10px 12px;border-radius:10px;bor
 .sync.offline::before{background:var(--danger)}
 .notice{font-size:13px;color:var(--muted);text-align:center;border:1px dashed var(--line);border-radius:12px;padding:10px 12px;margin:0}
 .panel p{margin:0;color:var(--muted);font-size:14px}
-.ok{color:var(--green);font-size:14px;margin:0}
+.panel p.ok{color:var(--green)}
+.panel p.err{color:var(--danger);font-size:13px}

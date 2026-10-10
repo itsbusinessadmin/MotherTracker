@@ -2,20 +2,20 @@
   'use strict';
   var CFG=window.CE_CONFIG||{};
   var PAGE_ID=CFG.pageId||'main';
-  var BUCKET='ce-link-images';
   var CACHE_KEY='ce-links:'+PAGE_ID;
+  var CODE_KEY='ce-edit-code:'+PAGE_ID;
   var DEFAULT={name:'CE Fun Club Store',logo:'',links:[{id:'l1',title:'Order online',url:'https://bilihan.shop',img:'',admin:'https://bilihan.shop/admin.html'}]};
 
   var configured=!!(CFG.supabaseUrl&&CFG.supabaseAnonKey&&!/^YOUR_/.test(CFG.supabaseUrl)&&window.supabase);
-  var sb=configured?window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey):null;
+  var sb=configured?window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey,{auth:{persistSession:false,autoRefreshToken:false}}):null;
 
   // saved = last state known to be in the cloud (or on this device in local mode); state = what's on screen
   var cached=readCache();
   var saved=cached?cached.data:clone(DEFAULT);
   var version=cached?cached.version:null;
   var state=clone(saved);
-  var user=null, canEdit=!configured, editing=false, dirty=false, saving=false, uploading=false;
-  var msg='', sheet=null, choose=null, login=null, sync=configured?'loading':'local', staleRemote=false;
+  var code=readCode(), editing=false, dirty=false, saving=false, uploading=false;
+  var msg='', sheet=null, choose=null, unlock=null, sync=configured?'loading':'local', staleRemote=false;
   var root=document.getElementById('root');
 
   function clone(o){return JSON.parse(JSON.stringify(o))}
@@ -29,15 +29,17 @@
 
   function readCache(){try{var c=JSON.parse(localStorage.getItem(CACHE_KEY));return c&&c.data?c:null}catch(e){return null}}
   function writeCache(){try{localStorage.setItem(CACHE_KEY,JSON.stringify({data:saved,version:version}))}catch(e){}}
+  function readCode(){try{return localStorage.getItem(CODE_KEY)||''}catch(e){return ''}}
+  function rememberCode(c){try{if(c)localStorage.setItem(CODE_KEY,c);else localStorage.removeItem(CODE_KEY)}catch(e){}}
 
   // ── Rendering ──────────────────────────────────────────────────────────
   function render(){
     var logo=safeImg(state.logo);
     var badge='<div class="badge" aria-hidden="true">'+(logo?'<img src="'+esc(logo)+'" alt="">':esc(initials(state.name)))+'</div>';
-    var hasBar=canEdit||!!user;
+    var hasBar=editing||!!msg;
     var h='<div class="wrap'+(editing?' editing':'')+(hasBar?' hasbar':'')+'"><header>';
     if(editing){
-      h+='<div class="logo-edit"><label class="logo-pick">'+badge+(uploading==='logo'?'Uploading…':state.logo?'Change logo':'Upload logo')+
+      h+='<div class="logo-edit"><label class="logo-pick">'+badge+(uploading==='logo'?'Loading…':state.logo?'Change logo':'Upload logo')+
          '<input type="file" id="f-logo" accept="image/*"></label>'+
          (state.logo?'<button type="button" class="linkbtn" id="rm-logo">Remove logo</button>':'')+'</div>';
       h+='<label style="width:100%">Page name<input type="text" id="f-name" value="'+esc(state.name)+'"></label>';
@@ -58,32 +60,24 @@
     });
     if(editing)h+='<button class="tile addtile" id="add" aria-label="Add a link"><div class="ph">+</div><div class="lbl">Add link</div></button>';
     h+='</nav><footer>Powered by <b>Ganda</b>';
-    if(configured&&!user)h+='<div class="footer-actions"><button type="button" class="linkbtn" id="signin">Owner sign in</button></div>';
+    if(!editing)h+='<div class="footer-actions"><button type="button" class="linkbtn" id="edit">Edit links</button></div>';
     h+='</footer></div>';
     if(hasBar)h+=barHTML();
     if(sheet)h+=sheetHTML();
-    else if(login)h+=loginHTML();
+    else if(unlock)h+=unlockHTML();
     else if(choose!=null&&state.links[choose])h+=chooserHTML(state.links[choose]);
     root.innerHTML=h;
     wire();
   }
 
-  function syncHTML(){
-    var t={live:'Synced',loading:'Connecting…',offline:'Offline',local:'This device only'}[sync];
-    return '<span class="sync '+sync+'">'+t+'</span>';
-  }
-
   function barHTML(){
     var h='<div class="bar">';
-    if(!canEdit){
-      h+='<span class="msg">'+esc(msg||('Signed in as '+(user&&user.email)+' — not an editor'))+'</span><button class="btn" id="signout">Sign out</button>';
-    }else if(editing){
+    if(editing){
       h+='<span class="msg">'+esc(msg||(dirty?'Unsaved changes':'Tap a tile to edit it'))+'</span>'+
          '<button class="btn" id="done">'+(dirty?'Discard':'Done')+'</button>'+
          '<button class="btn primary" id="save"'+(dirty&&!saving&&!uploading?'':' disabled')+'>'+(saving?'Saving…':'Save changes')+'</button>';
     }else{
-      h+=(msg?'<span class="msg">'+esc(msg)+'</span>':syncHTML())+'<button class="btn" id="edit">Edit links</button>';
-      if(user)h+='<button class="btn" id="signout">Sign out</button>';
+      h+='<span class="msg">'+esc(msg)+'</span>';
     }
     return h+'</div>';
   }
@@ -100,7 +94,7 @@
   function sheetHTML(){
     var l=sheet.link, img=safeImg(l.img);
     return '<div class="sheet" id="sheet"><form class="panel" id="lform" novalidate><h2>'+(sheet.index<0?'Add a link':'Edit link')+'</h2>'+
-      '<div class="photo"><div class="prev" id="prev">'+(uploading==='tile'?'Uploading…':img?'<img src="'+esc(img)+'" alt="">':'No photo')+'</div>'+
+      '<div class="photo"><div class="prev" id="prev">'+(uploading==='tile'?'Loading…':img?'<img src="'+esc(img)+'" alt="">':'No photo')+'</div>'+
       '<label style="flex:1">Photo or icon<input type="file" id="f-img" accept="image/*"></label></div>'+
       '<label>Name<input type="text" id="f-title" value="'+esc(l.title)+'" placeholder="e.g. Facebook Page" required></label>'+
       '<label>Customer page link<input type="url" id="f-url" value="'+esc(l.url)+'" placeholder="https://…" inputmode="url"></label>'+
@@ -112,16 +106,14 @@
       '</form></div>';
   }
 
-  function loginHTML(){
-    var body=login.sent
-      ?'<p class="ok">Check '+esc(login.email)+' for a sign-in link, then open it on this device.</p>'
-      :'<p>Owners sign in with a one-time email link. Only emails on the editor list can make changes.</p>'+
-       '<label>Email<input type="email" id="f-email" value="'+esc(login.email||'')+'" autocomplete="email" inputmode="email" required></label>'+
-       (login.err?'<p class="err">'+esc(login.err)+'</p>':'');
-    return '<div class="sheet" id="lsheet"><form class="panel" id="loginform" novalidate><h2>Owner sign in</h2>'+body+
-      '<div class="row"><span></span><div class="right"><button type="button" class="btn" id="l-cancel">'+(login.sent?'Close':'Cancel')+'</button>'+
-      (login.sent?'':'<button type="submit" class="btn primary"'+(login.busy?' disabled':'')+'>'+(login.busy?'Sending…':'Send link')+'</button>')+
-      '</div></div></form></div>';
+  function unlockHTML(){
+    return '<div class="sheet" id="usheet"><form class="panel" id="uform" novalidate><h2>Edit links</h2>'+
+      '<p>Enter the edit code to change this page.</p>'+
+      '<label>Edit code<input type="password" id="f-code" value="'+esc(unlock.code||'')+'" autocomplete="current-password" autocapitalize="off" required></label>'+
+      '<label style="flex-direction:row;align-items:center;gap:8px;font-weight:500"><input type="checkbox" id="f-remember"'+(unlock.remember?' checked':'')+'>Remember on this device</label>'+
+      (unlock.err?'<p class="err">'+esc(unlock.err)+'</p>':'')+
+      '<div class="row"><span></span><div class="right"><button type="button" class="btn" id="u-cancel">Cancel</button>'+
+      '<button type="submit" class="btn primary"'+(unlock.busy?' disabled':'')+'>'+(unlock.busy?'Checking…':'Continue')+'</button></div></div></form></div>';
   }
 
   // ── Events ─────────────────────────────────────────────────────────────
@@ -139,9 +131,7 @@
   }
 
   function wire(){
-    on('edit','click',function(){editing=true;choose=null;msg='';render()});
-    on('signin','click',function(){login={email:''};render();$('f-email').focus()});
-    on('signout','click',function(){sb.auth.signOut()});
+    on('edit','click',startEditing);
     root.querySelectorAll('[data-choose]').forEach(function(b){b.addEventListener('click',function(){
       choose=+b.getAttribute('data-choose');render();var c=root.querySelector('.choice');if(c)c.focus()})});
     if(choose!=null){
@@ -150,11 +140,11 @@
       on('chooser','click',function(e){if(e.target.id==='chooser')closeCh()});
       root.querySelectorAll('[data-close]').forEach(function(a){a.addEventListener('click',function(){setTimeout(closeCh,0)})});
     }
-    if(login){
-      var closeL=function(){login=null;render()};
-      on('l-cancel','click',closeL);
-      on('lsheet','click',function(e){if(e.target.id==='lsheet')closeL()});
-      on('loginform','submit',function(e){e.preventDefault();sendLink($('f-email').value.trim())});
+    if(unlock){
+      var closeU=function(){unlock=null;render()};
+      on('u-cancel','click',closeU);
+      on('usheet','click',function(e){if(e.target.id==='usheet')closeU()});
+      on('uform','submit',function(e){e.preventDefault();tryCode($('f-code').value.trim(),$('f-remember').checked)});
     }
     on('done','click',function(){
       if(dirty||staleRemote){state=clone(saved);if(staleRemote)refresh()}
@@ -197,7 +187,7 @@
     });
   }
 
-  // ── Images: square-crop and shrink, then upload to Supabase Storage ───
+  // ── Images: square-crop and shrink ─────────────────────────────────────
   function shrink(file){
     return new Promise(function(res,rej){
       var r=new FileReader();r.onerror=rej;r.onload=function(){
@@ -211,18 +201,10 @@
     });
   }
   function storeImage(file){
-    return shrink(file).then(function(c){
-      if(!sb)return c.toDataURL('image/jpeg',0.82);
-      return new Promise(function(res,rej){c.toBlob(function(b){b?res(b):rej(new Error('encode'))},'image/jpeg',0.82)}).then(function(blob){
-        var path=PAGE_ID+'/'+Date.now()+'-'+Math.random().toString(36).slice(2,8)+'.jpg';
-        return sb.storage.from(BUCKET).upload(path,blob,{contentType:'image/jpeg',cacheControl:'31536000'}).then(function(r){
-          if(r.error){var e=new Error(r.error.message);e.upload=true;throw e}
-          return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-        });
-      });
-    });
+    // Photos are saved with the page as small JPEG data, so editing needs no upload permissions.
+    return shrink(file).then(function(c){return c.toDataURL('image/jpeg',0.8)});
   }
-  function imgError(err){return err&&err.upload?'Could not upload the photo. Check your connection and try again.':'That image could not be read. Try a JPG or PNG.'}
+  function imgError(){return 'That image could not be read. Try a JPG or PNG.'}
 
   // ── Cloud sync ─────────────────────────────────────────────────────────
   function applyRow(row){
@@ -241,66 +223,63 @@
     },function(){sync='offline';render()});
   }
 
+  var CODE_MSG={bad_code:'That edit code is not right.',locked:'Too many wrong codes. Wait 15 minutes and try again.',
+    no_code:'No edit code has been set up yet. See the README.'};
+
+  function startEditing(){
+    choose=null;msg='';
+    if(!sb||code){editing=true;render();return}
+    unlock={code:'',remember:true};render();$('f-code').focus();
+  }
+
+  function tryCode(c,remember){
+    if(!c){unlock.err='Enter the edit code.';render();return}
+    unlock={code:c,remember:remember,busy:true};render();
+    sb.rpc('ce_check_code',{p_page:PAGE_ID,p_code:c}).then(function(r){
+      if(!unlock)return;
+      if(r.error){unlock.busy=false;unlock.err='Could not check the code. Check your connection and try again.';render();return}
+      if(r.data!=='ok'){unlock.busy=false;unlock.err=CODE_MSG[r.data]||'Could not check the code.';render();return}
+      code=c;if(remember)rememberCode(c);
+      unlock=null;editing=true;render();
+    },function(){if(unlock){unlock.busy=false;unlock.err='Could not check the code. Check your connection and try again.';render()}});
+  }
+
   function save(){
     readHeader();
     if(saving||uploading||!dirty)return;
     if(!sb){
-      saved=clone(state);writeCache();dirty=false;editing=false;msg='Saved on this device';render();return;
+      saved=clone(state);writeCache();dirty=false;editing=false;flash('Saved on this device');return;
     }
     if(staleRemote){msg='This page changed on another device. Tap Discard to load it, then make your change again.';render();return}
     saving=true;msg='';render();
-    var row={name:state.name,logo:state.logo||'',links:state.links};
-    var q=version==null
-      ?sb.from('ce_link_pages').upsert(Object.assign({id:PAGE_ID},row))
-      :sb.from('ce_link_pages').update(row).eq('id',PAGE_ID).eq('version',version);
-    q.select().then(function(r){
+    sb.rpc('ce_save_page',{p_page:PAGE_ID,p_code:code,p_version:version,p_name:state.name,p_logo:state.logo||'',p_links:state.links}).then(function(r){
       saving=false;
-      if(r.error){
-        msg=(r.error.code==='42501')?'Your account can view this page but not change it.':'Could not save. Check your connection and tap Save again.';
-        render();return;
-      }
-      if(!r.data||!r.data.length){
+      var st=r.data&&r.data.status;
+      if(r.error||!st){msg='Could not save. Check your connection and tap Save again.';render();return}
+      if(st==='ok'){dirty=false;applyRow(r.data.row);editing=false;sync='live';flash('Saved');return}
+      if(st==='conflict'){
         msg='This page changed on another device. Tap Discard to load it, then make your change again.';
         staleRemote=true;refresh();return;
       }
-      dirty=false;applyRow(r.data[0]);editing=false;msg='Saved';sync='live';render();
-      setTimeout(function(){if(msg==='Saved'){msg='';render()}},2500);
+      if(st==='bad_code'||st==='no_code'){
+        // Code was changed or never set: forget it and ask again, keeping the unsaved edits
+        code='';rememberCode('');msg='';unlock={code:'',remember:true,err:CODE_MSG[st]};render();return;
+      }
+      msg=CODE_MSG[st]||(st==='too_large'?'Too many photos to save. Remove a few and try again.':'Could not save. Try again.');
+      render();
     },function(){saving=false;msg='Could not save. Check your connection and tap Save again.';render()});
   }
 
-  function sendLink(email){
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){login.email=email;login.err='Enter a valid email address.';render();return}
-    login={email:email,busy:true};render();
-    sb.auth.signInWithOtp({email:email,options:{shouldCreateUser:false,emailRedirectTo:location.origin+location.pathname}}).then(function(r){
-      if(!login)return;
-      login.busy=false;
-      if(r.error)login.err=r.error.status===429?'Too many tries. Wait a minute and try again.':
-        /signup|not allowed|not found/i.test(r.error.message||'')?'That email isn\'t set up as an owner yet.':'Could not send the link. '+r.error.message;
-      else login.sent=true;
-      render();
-    });
-  }
-
-  function checkEditor(){
-    if(!user){canEdit=false;editing=false;dirty=false;state=clone(saved);render();return}
-    sb.rpc('ce_is_editor').then(function(r){
-      canEdit=!r.error&&r.data===true;
-      if(!canEdit){editing=false;dirty=false;state=clone(saved)}
-      render();
-    });
+  function flash(t){
+    msg=t;render();
+    setTimeout(function(){if(msg===t){msg='';render()}},2500);
   }
 
   function startSync(){
-    sb.auth.onAuthStateChange(function(ev,session){
-      var u=session&&session.user||null;
-      if((u&&u.id)===(user&&user.id))return;
-      user=u;login=null;msg='';
-      // Supabase advises not to await other client calls inside this callback
-      setTimeout(checkEditor,0);
-    });
     sb.channel('link-page-'+PAGE_ID)
       .on('postgres_changes',{event:'*',schema:'public',table:'ce_link_pages',filter:'id=eq.'+PAGE_ID},function(p){
-        if(p.new&&p.new.version!=null&&(version==null||p.new.version>version)){applyRow(p.new);render()}
+        // Fetch rather than trust the payload: rows with photos can be too big to arrive whole
+        if(!p.new||p.new.version==null||version==null||p.new.version>version)refresh();
       })
       .subscribe(function(status){
         if(status==='SUBSCRIBED'){refresh()}
